@@ -9,7 +9,7 @@
 // ==/UserScript==
 
 (() => {
-  const EXCLUSIONS = new Set(['Tether']);
+  const EXCLUDED_COINS = new Set(['Tether']);
   const MAX_QUANTITY = 20;
   const ALLOCATE_BTN_HTML = `
     <div class="allocation-confirm-button-container" _ngcontent-c7="">
@@ -18,6 +18,7 @@
       </button>
     </div>
   `;
+  const API_TOP_100_COINS = 'https://api.coinmarketcap.com/v2/ticker/?structure=array';
 
   // Add the custom button to the allocations page.
   const MutationObserver = window.MutationObserver || window.WebKitMutationObserver;
@@ -68,16 +69,47 @@
     let count = 0;
     for (let i = 0; count < MAX_QUANTITY; i++) {
       const coinName = coins[i].querySelector('.currency-name').innerHTML.trim();
-      if (!EXCLUSIONS.has(coinName)) {
+      if (!EXCLUDED_COINS.has(coinName)) {
         coins[i].click();
         count++;
       }
     }
   };
 
+  const getCMCData = () =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', API_TOP_100_COINS, true);
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(xhr.response);
+        } else {
+          reject({
+            status: this.status,
+            statusText: xhr.statusText
+          });
+        }
+      };
+      xhr.onerror = () => {
+        reject({
+          status: this.status,
+          statusText: xhr.statusText
+        });
+      };
+      xhr.send();
+    });
+
+  const parseCMCResponse = response => {
+    const mappedMarketCaps = new Map();
+    const { data } = JSON.parse(response);
+    data.forEach(coin => mappedMarketCaps.set(coin.name, coin.quotes.USD.market_cap));
+    console.log(mappedMarketCaps);
+  };
+
   const performAllocation = () => {
     removeAllocations();
     selectTopCoins();
+    getCMCData().then(parseCMCResponse);
   };
 
   // POJO for standardizing CMC API response

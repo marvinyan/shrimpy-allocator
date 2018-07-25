@@ -3,6 +3,10 @@
   "plugins": ["prettier"],
   "rules": {
     "prettier/prettier": ["error"],
-    "no-plusplus": "off"
+    "no-plusplus": "off",
+    "prefer-promise-reject-errors": "off"
+  },
+  "env": {
+    "browser": true
   }
 }
