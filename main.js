@@ -20,29 +20,6 @@
   `;
   const API_TOP_100_COINS = 'https://api.coinmarketcap.com/v2/ticker/?structure=array';
 
-  // Add the custom button to the allocations page.
-  const MutationObserver = window.MutationObserver || window.WebKitMutationObserver;
-  const config = { childList: true, subtree: true };
-  const observer = new MutationObserver(mutations => {
-    mutations.forEach(mutation => {
-      if (
-        typeof mutation.target.className === 'string' &&
-        mutation.target.className.includes('rebalance-group')
-      ) {
-        addCustomBtn();
-      }
-    });
-  });
-  observer.observe(document, config);
-
-  const addCustomBtn = () => {
-    const div = document.createElement('div');
-    div.innerHTML = ALLOCATE_BTN_HTML.trim();
-    const buttonsBar = document.querySelector('.shrimpy-card-buttons');
-    div.firstChild.addEventListener('click', performAllocation);
-    buttonsBar.insertAdjacentElement('afterbegin', div.firstChild);
-  };
-
   // Remove existing allocations
   const removeAllocations = () => {
     document.querySelectorAll('.remove').forEach(el => el.click());
@@ -52,8 +29,7 @@
   const selectTopCoins = () => {
     // Get array of coins
     const possibleAllocsDiv = document.querySelector('.possible-allocations');
-    let coins = possibleAllocsDiv.querySelectorAll('.item');
-    coins = Array.prototype.slice.call(coins);
+    const coins = Array.from(possibleAllocsDiv.querySelectorAll('.item'));
 
     // Sort coins by rank
     coins.sort((a, b) => {
@@ -85,19 +61,23 @@
           resolve(xhr.response);
         } else {
           reject({
-            status: this.status,
+            status: xhr.status,
             statusText: xhr.statusText
           });
         }
       };
       xhr.onerror = () => {
         reject({
-          status: this.status,
+          status: xhr.status,
           statusText: xhr.statusText
         });
       };
       xhr.send();
     });
+
+  const showErrorAlert = ({ status, statusText }) => {
+    alert(`Unable to connect to CoinMarketCap. ${status}: ${statusText}`);
+  };
 
   const parseCMCResponse = response => {
     const mappedMarketCaps = new Map();
@@ -109,15 +89,33 @@
   const performAllocation = () => {
     removeAllocations();
     selectTopCoins();
-    getCMCData().then(parseCMCResponse);
+    getCMCData()
+      .then(parseCMCResponse)
+      .catch(showErrorAlert);
   };
 
-  // POJO for standardizing CMC API response
-  class Coin {
-    constructor(name, symbol, marketCap) {
-      this.name = name;
-      this.symbol = symbol;
-      this.marketCap = marketCap;
-    }
-  }
+  const addCustomBtn = () => {
+    const div = document.createElement('div');
+    div.innerHTML = ALLOCATE_BTN_HTML.trim();
+    const buttonsBar = document.querySelector('.shrimpy-card-buttons');
+    div.firstChild.addEventListener('click', performAllocation);
+    buttonsBar.insertAdjacentElement('afterbegin', div.firstChild);
+  };
+
+  // Add the custom button to the allocations page.
+  const MutationObserver = window.MutationObserver || window.WebKitMutationObserver;
+  const config = { childList: true, subtree: true };
+  const observer = new MutationObserver(mutations => {
+    mutations.some(mutation => {
+      if (
+        typeof mutation.target.className === 'string' &&
+        mutation.target.className.includes('rebalance-group')
+      ) {
+        addCustomBtn();
+        return true;
+      }
+      return false;
+    });
+  });
+  observer.observe(document, config);
 })();
