@@ -1,11 +1,10 @@
 // ==UserScript==
-// @name         Shrimpy Top 20 Allocator
-// @version      0.1
-// @description  Enhances Shrimpy.io by providing market cap based rebalancing.
+// @name         Shrimpy Top 20 Cap-Weighted Allocator
+// @version      1.0.1
+// @description  Enhances Shrimpy.io by providing cap-weighted portfolio allocation of the top 20 coins.
 // @author       Marvin Yan
 // @match        https://www.shrimpy.io/dashboard
 // @grant        none
-// @namespace https://greasyfork.org/users/128831
 // ==/UserScript==
 
 (() => {
@@ -165,7 +164,8 @@
   };
 
   // Add the custom button to the allocations page.
-  const MutationObserver = window.MutationObserver || window.WebKitMutationObserver;
+  const MutationObserver =
+    window.MutationObserver || window.WebKitMutationObserver || window.MozMutationObserver;
   const config = { childList: true, subtree: true };
   const observer = new MutationObserver(mutations => {
     mutations.some(mutation => {
