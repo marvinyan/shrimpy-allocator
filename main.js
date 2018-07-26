@@ -9,8 +9,12 @@
 // ==/UserScript==
 
 (() => {
+  // Customizable constants
   const EXCLUDED_COINS = new Set(['Tether']);
-  const MAX_QUANTITY = 20;
+  const PORTFOLIO_SIZE = 20;
+  const MAX_ALLOCATION_PCT = 10; // Excess will be distributed among other holdings
+
+  const API_TOP_100_COINS = 'https://api.coinmarketcap.com/v2/ticker/?structure=array';
   const ALLOCATE_BTN_HTML = `
     <div class="allocation-confirm-button-container" _ngcontent-c7="">
       <button class="normal-button mat-button">
@@ -18,13 +22,13 @@
       </button>
     </div>
   `;
-  const API_TOP_100_COINS = 'https://api.coinmarketcap.com/v2/ticker/?structure=array';
 
   // Remove existing allocations
   const removeAllocations = () => {
     document.querySelectorAll('.remove').forEach(el => el.click());
   };
 
+  const selectedCoins = new Set();
   // Select the top 20 coins
   const selectTopCoins = () => {
     // Get array of coins
@@ -43,9 +47,10 @@
     });
 
     let count = 0;
-    for (let i = 0; count < MAX_QUANTITY; i++) {
+    for (let i = 0; count < PORTFOLIO_SIZE; i++) {
       const coinName = coins[i].querySelector('.currency-name').innerHTML.trim();
       if (!EXCLUDED_COINS.has(coinName)) {
+        selectedCoins.add(coinName);
         coins[i].click();
         count++;
       }
@@ -79,19 +84,76 @@
     alert(`Unable to connect to CoinMarketCap. ${status}: ${statusText}`);
   };
 
+  // const getRemainingMarketCap = (coins, marketCaps) =>
+  //   Array.from(coins).reduce((acc, val) => acc + val.marketCap, 0);
+
+  const fillInAllocationFields = mappedMarketCaps => {
+    const chosenAllocsDiv = document.querySelector('.chosen-allocations');
+    const coins = Array.from(chosenAllocsDiv.querySelectorAll('.item'));
+
+    coins.forEach(coin => {
+      const name = coin.querySelector('.currency-name').innerHTML.trim();
+      const formField = coin.querySelector('input');
+      formField.value = mappedMarketCaps.get(name).allocation;
+
+      // Fire change events to update displayed total allocation %
+      const event = new Event('change');
+      formField.dispatchEvent(event);
+    });
+  };
+
+  const getRemainingPct = (coins, marketCaps) =>
+    Array.from(coins).reduce((acc, coinName) => acc + marketCaps.get(coinName).allocation, 0);
+
   const parseCMCResponse = response => {
+    let totalCap = 0;
     const mappedMarketCaps = new Map();
     const { data } = JSON.parse(response);
-    data.forEach(coin => mappedMarketCaps.set(coin.name, coin.quotes.USD.market_cap));
+    data.forEach(coin => {
+      if (selectedCoins.has(coin.name)) {
+        totalCap += coin.quotes.USD.market_cap;
+        mappedMarketCaps.set(coin.name, { marketCap: coin.quotes.USD.market_cap });
+      }
+    });
+
+    selectedCoins.forEach(coinName => {
+      const coinData = mappedMarketCaps.get(coinName);
+      coinData.allocation = (100 * coinData.marketCap) / totalCap;
+    });
+
+    const remainingCoins = new Set(mappedMarketCaps.keys());
+    mappedMarketCaps.forEach((coinInfo, coinName) => {
+      remainingCoins.delete(coinName);
+
+      if (coinInfo.allocation > MAX_ALLOCATION_PCT) {
+        const excess = coinInfo.allocation - MAX_ALLOCATION_PCT;
+        coinInfo.allocation = MAX_ALLOCATION_PCT;
+
+        // const remainingMarketCap = getRemainingMarketCap(remainingCoins, mappedMarketCaps);
+        const remainingPct = getRemainingPct(remainingCoins, mappedMarketCaps);
+
+        remainingCoins.forEach(remCoinName => {
+          const remCoin = mappedMarketCaps.get(remCoinName);
+          const oldAlloc = remCoin.allocation;
+          remCoin.allocation += (excess * oldAlloc) / remainingPct;
+        });
+      }
+    });
+
     console.log(mappedMarketCaps);
+
+    // Round allocations to nearest percent (minimum of 1%)
+    mappedMarketCaps.forEach(coinInfo => {
+      coinInfo.allocation = Math.max(1, Math.round(coinInfo.allocation));
+    });
+
+    fillInAllocationFields(mappedMarketCaps);
   };
 
   const performAllocation = () => {
     removeAllocations();
     selectTopCoins();
-    getCMCData()
-      .then(parseCMCResponse)
-      .catch(showErrorAlert);
+    getCMCData().then(parseCMCResponse, showErrorAlert);
   };
 
   const addCustomBtn = () => {
