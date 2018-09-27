@@ -141,9 +141,9 @@
 
     console.log(mappedMarketCaps);
 
-    // Round allocations to nearest percent (minimum of 1%)
+    // Round allocations to nearest 0.1% (minimum of 1%)
     mappedMarketCaps.forEach(coinInfo => {
-      coinInfo.allocation = Math.max(1, Math.round(coinInfo.allocation));
+      coinInfo.allocation = Math.max(1, Math.round(coinInfo.allocation * 10) / 10);
     });
 
     fillInAllocationFields(mappedMarketCaps);
@@ -169,9 +169,11 @@
   const config = { childList: true, subtree: true };
   const observer = new MutationObserver(mutations => {
     mutations.some(mutation => {
+      const mutationTarget = mutation.target;
       if (
-        typeof mutation.target.className === 'string' &&
-        mutation.target.className.includes('rebalance-group')
+        typeof mutationTarget.className === 'string' &&
+        mutationTarget.className.includes('page-content') &&
+        mutationTarget.innerText.startsWith('REBALANCE SCHEDULE')
       ) {
         addCustomBtn();
         return true;
